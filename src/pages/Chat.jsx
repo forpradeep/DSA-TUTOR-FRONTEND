@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { logout } from '../redux/authSlice';
-import { useSelector, useDispatch } from 'react-redux';
 
 const Chat = () => {
   const [problemText, setProblemText] = useState('');
@@ -12,16 +12,17 @@ const Chat = () => {
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [hintCount, setHintCount] = useState(0);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const user = useSelector((state) => state.auth.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
-  const [copiedIdx, setCopiedIdx] = useState(null);
-  const user = useSelector((state) => state.auth.user);
-  const [menuOpen, setMenuOpen] = useState(false);
-
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,8 +33,14 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
+    const closeMenu = () => setMenuOpen(false);
+    if (menuOpen) document.addEventListener('click', closeMenu);
+    return () => document.removeEventListener('click', closeMenu);
+  }, [menuOpen]);
+
+  useEffect(() => {
     const handlePaste = async (e) => {
-      if (sessionId) return; // only allow pasting to start a NEW session, matches "+/upload" behavior
+      if (sessionId) return;
       if (loading) return;
 
       const items = e.clipboardData?.items;
@@ -54,13 +61,6 @@ const Chat = () => {
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [sessionId, loading]);
-  useEffect(() => {
-    const closeMenu = () => setMenuOpen(false);
-    if (menuOpen) {
-      document.addEventListener('click', closeMenu);
-    }
-    return () => document.removeEventListener('click', closeMenu);
-  }, [menuOpen]);
 
   const fetchSessions = async () => {
     try {
@@ -69,26 +69,6 @@ const Chat = () => {
     } catch (err) {
       console.error('Failed to load sessions', err);
     }
-  };
-  const confirmRename = async (id) => {
-    const trimmed = editValue.trim();
-    setEditingId(null);
-    if (!trimmed) return;
-
-    const current = sessions.find(s => s._id === id);
-    if (trimmed === (current?.title || current?.problemText)) return;
-
-    try {
-      await axiosInstance.patch(`/tutor/sessions/${id}`, { title: trimmed });
-      fetchSessions();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Rename failed');
-    }
-  };
-  const handleCopy = (content, idx) => {
-    navigator.clipboard.writeText(content);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 1500);
   };
 
   const loadSession = async (id) => {
@@ -123,7 +103,6 @@ const Chat = () => {
     setLoading(false);
   };
 
-
   const sendMessage = async () => {
     if (!input.trim() || !sessionId) return;
     const userMsg = input;
@@ -138,18 +117,6 @@ const Chat = () => {
       alert(err.response?.data?.message || 'Failed to send message');
     }
     setLoading(false);
-  };
-  const handleDelete = async (e, id) => {
-    e.stopPropagation();
-    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
-
-    try {
-      await axiosInstance.delete(`/tutor/sessions/${id}`);
-      if (sessionId === id) resetSession();
-      fetchSessions();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed');
-    }
   };
 
   const fileToBase64 = (file) => {
@@ -187,6 +154,41 @@ const Chat = () => {
     e.target.value = '';
   };
 
+  const confirmRename = async (id) => {
+    const trimmed = editValue.trim();
+    setEditingId(null);
+    if (!trimmed) return;
+
+    const current = sessions.find(s => s._id === id);
+    if (trimmed === (current?.title || current?.problemText)) return;
+
+    try {
+      await axiosInstance.patch(`/tutor/sessions/${id}`, { title: trimmed });
+      fetchSessions();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Rename failed');
+    }
+  };
+
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+
+    try {
+      await axiosInstance.delete(`/tutor/sessions/${id}`);
+      if (sessionId === id) resetSession();
+      fetchSessions();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Delete failed');
+    }
+  };
+
+  const handleCopy = (content, idx) => {
+    navigator.clipboard.writeText(content);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 1500);
+  };
+
   const handleLogout = () => {
     dispatch(logout());
     navigate('/login');
@@ -198,6 +200,10 @@ const Chat = () => {
     setProblemText('');
     setHintCount(0);
   };
+
+  const filteredSessions = sessions.filter(s =>
+    (s.title || s.problemText).toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="app-shell">
@@ -212,14 +218,31 @@ const Chat = () => {
           DSA Tutor
         </div>
         <button className="new-chat-btn" onClick={resetSession}>+ New problem</button>
+
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search chats…"
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 7,
+            color: 'var(--paper)',
+            fontSize: 12.5,
+            padding: '7px 10px',
+            marginBottom: 10
+          }}
+        />
+
         <div className="session-label">Recent</div>
         <div className="session-list">
-          {sessions.length === 0 && (
+          {filteredSessions.length === 0 && (
             <div style={{ color: 'var(--slate-dim)', fontSize: 12.5, padding: '4px 6px', lineHeight: 1.5 }}>
-              No chats yet — paste a problem or upload a photo to get started.
+              {searchQuery ? 'No matching chats.' : 'No chats yet — paste a problem or upload a photo to get started.'}
             </div>
           )}
-          {sessions.map((s) => (
+          {filteredSessions.map((s) => (
             <div
               key={s._id}
               className={`session-item ${sessionId === s._id ? 'active' : ''}`}
@@ -323,16 +346,12 @@ const Chat = () => {
                 <div
                   onClick={() => alert('Account settings coming soon')}
                   style={{ padding: '9px 10px', fontSize: 13.5, color: 'var(--slate)', cursor: 'pointer', borderRadius: 6 }}
-                  onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.04)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
                 >
                   Account settings
                 </div>
                 <div
                   onClick={handleLogout}
                   style={{ padding: '9px 10px', fontSize: 13.5, color: '#E8847A', cursor: 'pointer', borderRadius: 6 }}
-                  onMouseEnter={(e) => e.target.style.background = 'rgba(232,132,122,0.08)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
                 >
                   Log out
                 </div>
@@ -381,7 +400,11 @@ const Chat = () => {
 
             <div className="message-scroll">
               {messages.map((m, i) => (
-                <div key={i} className={`msg-row ${m.role}`} style={{ flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div
+                  key={i}
+                  className={`msg-row ${m.role}`}
+                  style={{ flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}
+                >
                   <pre className={`bubble ${m.role}`}>{m.content}</pre>
                   {m.role === 'model' && m.content.includes('```') && (
                     <button
