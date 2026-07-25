@@ -1,16 +1,70 @@
-# React + Vite
+# DSA Tutor — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React client for DSA Tutor, a Socratic AI tutor for Data Structures &
+Algorithms practice.
 
-Currently, two official plugins are available:
+**Live app:** https://dsa-tutor-frontend-omega.vercel.app
+**Backend repo:** [DSA-TUTOR](https://github.com/forpradeep/DSA-TUTOR)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- Chat-style interface for pasting or photographing a DSA problem
+- Paste-to-upload (Ctrl+V a screenshot directly, no file picker needed)
+- Live hint-progress indicator (a lit trail of dots as hints escalate)
+- Session sidebar: search, rename, and delete past problem sessions
+- Typing indicator while the tutor is generating a response
+- Copy button on any reply containing a code block
+- JWT-based auth with persistent login
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech stack
 
-## Expanding the ESLint configuration
+- **React** (Vite)
+- **Redux Toolkit** for auth state
+- **React Router** for client-side routing
+- **Axios** for API calls
+- Custom design system (no UI framework) — ink/paper/amber palette,
+  Fraunces + Inter + JetBrains Mono typography
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Local setup
+
+```bash
+git clone https://github.com/forpradeep/DSA-TUTOR-FRONTEND.git
+cd DSA-TUTOR-FRONTEND
+npm install
+```
+
+Create a `.env` file:
+
+```
+VITE_API_URL=http://localhost:5000/api
+```
+
+(Point this at the deployed backend URL instead if you want to develop
+against production data.)
+
+Run it:
+
+```bash
+npm run dev
+```
+
+## Deployment
+
+Deployed on Vercel. `vercel.json` includes a rewrite rule so that
+client-side routes (e.g. `/chat`) resolve correctly on hard refresh or
+direct navigation, since this is a single-page app.
+
+```json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+```
+
+## Design notes
+
+The visual design intentionally avoids generic "AI app" styling — an
+ink-navy background with warm amber accents and a serif display face,
+meant to feel like a mentor's notebook rather than a dashboard. The hint
+trail (dots that light up amber as hints escalate) is the one custom
+visual metaphor tied directly to the product's core idea: gradual,
+earned revelation rather than instant answers.
